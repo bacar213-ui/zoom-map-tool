@@ -8,24 +8,26 @@
 <style>
   body { margin:0; padding:0; }
   #map { position:absolute; top:0; bottom:0; width:100%; }
-  #searchBox {
-    position:absolute; top:10px; left:10px; right:10px; z-index:10;
-    display:flex; gap:6px;
-  }
+  #searchBox { position:absolute; top:10px; left:10px; right:10px; z-index:10; }
   #searchInput {
-    flex:1; padding:12px; font-size:16px; border-radius:8px; border:none;
+    width:100%; box-sizing:border-box; padding:12px; font-size:16px;
+    border-radius:8px; border:none;
   }
-  #searchBtn {
-    padding:12px 16px; font-size:16px; border-radius:8px; border:none;
-    background:#1d4ed8; color:white;
+  #suggestions {
+    background:white; border-radius:8px; margin-top:4px;
+    max-height:250px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.2);
   }
+  .suggestion-item {
+    padding:12px; font-size:14px; border-bottom:1px solid #eee; cursor:pointer;
+  }
+  .suggestion-item:hover { background:#f0f0f0; }
 </style>
 </head>
 <body>
 
 <div id="searchBox">
-  <input id="searchInput" type="text" placeholder="Ej: Bar Marsella, Barcelona" />
-  <button id="searchBtn">Buscar</button>
+  <input id="searchInput" type="text" placeholder="Escribe un bar, calle o lugar..." />
+  <div id="suggestions"></div>
 </div>
 <div id="map"></div>
 
@@ -37,34 +39,40 @@ const map = new maplibregl.Map({
   zoom: 3
 });
 
-async function buscarLugar(query) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-  const res = await fetch(url, {
-    headers: { 'Accept-Language': 'es' }
-  });
+const input = document.getElementById('searchInput');
+const suggestionsBox = document.getElementById('suggestions');
+let debounceTimer;
+
+input.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  const query = input.value.trim();
+  if (query.length < 3) { suggestionsBox.innerHTML = ''; return; }
+  debounceTimer = setTimeout(() => buscarSugerencias(query), 300);
+});
+
+async function buscarSugerencias(query) {
+  const center = map.getCenter();
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}&limit=6&lang=es`;
+  const res = await fetch(url);
   const data = await res.json();
-  if (data.length === 0) {
-    alert("No se encontró ese sitio, prueba con más detalle (ej. añade la ciudad)");
-    return;
-  }
-  const lugar = data[0];
-  document.getElementById('searchBox').style.display = 'none';
-  map.flyTo({
-    center: [parseFloat(lugar.lon), parseFloat(lugar.lat)],
-    zoom: 18,
-    duration: 8000,
-    curve: 1.42
+  suggestionsBox.innerHTML = '';
+  data.features.forEach(f => {
+    const p = f.properties;
+    const texto = [p.name, p.street, p.city, p.country].filter(Boolean).join(', ');
+    const div = document.createElement('div');
+    div.className = 'suggestion-item';
+    div.textContent = texto;
+    div.addEventListener('click', () => seleccionarLugar(f));
+    suggestionsBox.appendChild(div);
   });
 }
 
-document.getElementById('searchBtn').addEventListener('click', () => {
-  const query = document.getElementById('searchInput').value.trim();
-  if (query) buscarLugar(query);
-});
-
-document.getElementById('searchInput').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') document.getElementById('searchBtn').click();
-});
+function seleccionarLugar(feature) {
+  const [lon, lat] = feature.geometry.coordinates;
+  suggestionsBox.innerHTML = '';
+  document.getElementById('searchBox').style.display = 'none';
+  map.flyTo({ center: [lon, lat], zoom: 18, duration: 8000, curve: 1.42 });
+}
 </script>
 </body>
 </html>
