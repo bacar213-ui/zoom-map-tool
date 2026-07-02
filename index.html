@@ -2,6 +2,157 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  body { margin:0; padding:0; }
+  #map { position:absolute; top:0; bottom:0; width:100%; }
+  #searchBox { position:absolute; top:10px; left:10px; right:10px; z-index:10; }
+  #searchInput {
+    width:100%; box-sizing:border-box; padding:12px; font-size:16px;
+    border-radius:8px; border:none;
+  }
+  #suggestions {
+    background:white; border-radius:8px; margin-top:4px;
+    max-height:250px; overflow-y:auto; box-shadow:0 2px 8px rgba(0,0,0,0.2);
+  }
+  .suggestion-item {
+    padding:12px; font-size:14px; border-bottom:1px solid #eee; cursor:pointer;
+  }
+  .suggestion-item:hover { background:#f0f0f0; }
+</style>
+</head>
+<body>
+
+<div id="searchBox">
+  <input id="searchInput" type="text" placeholder="Escribe un bar, calle o lugar..." />
+  <div id="suggestions"></div>
+</div>
+<div id="map"></div>
+
+<script>
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      'esri-satellite': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        attribution: 'Tiles &copy; Esri'
+      }
+    },
+    layers: [
+      {
+        id: 'esri-satellite-layer',
+        type: 'raster',
+        source: 'esri-satellite',
+        minzoom: 0,
+        maxzoom: 19
+      }
+    ]
+  },
+  center: [2.1734, 41.3851],
+  zoom: 3
+});
+
+const input = document.getElementById('searchInput');
+const suggestionsBox = document.getElementById('suggestions');
+const searchBox = document.getElementById('searchBox');
+let debounceTimer;
+
+input.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  const query = input.value.trim();
+  if (query.length < 3) { suggestionsBox.innerHTML = ''; return; }
+  debounceTimer = setTimeout(() => buscarSugerencias(query), 300);
+});
+
+input.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    clearTimeout(debounceTimer);
+    const query = input.value.trim();
+    if (query.length >= 3) buscarSugerencias(query);
+  }
+});
+
+async function buscarSugerencias(query) {
+  suggestionsBox.innerHTML = '<div class="suggestion-item">Buscando...</div>';
+  try {
+    let resultados = await intentarPhoton(query, map.getCenter());
+    if (resultados.length === 0) {
+      resultados = await intentarNominatim(query);
+    }
+    if (resultados.length === 0) {
+      suggestionsBox.innerHTML = '<div class="suggestion-item">Sin resultados</div>';
+    } else {
+      mostrarSugerencias(resultados);
+    }
+  } catch (err) {
+    suggestionsBox.innerHTML = '<div class="suggestion-item">Error: ' + err.message + '</div>';
+  }
+}
+
+async function intentarPhoton(query, center) {
+  try {
+    const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query) +
+                '&lat=' + center.lat + '&lon=' + center.lng + '&limit=6&lang=es';
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data || !Array.isArray(data.features)) return [];
+    return data.features.map(f => ({
+      texto: [f.properties.name, f.properties.street, f.properties.city, f.properties.country].filter(Boolean).join(', '),
+      lon: f.geometry.coordinates[0],
+      lat: f.geometry.coordinates[1]
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
+async function intentarNominatim(query) {
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query) + '&limit=6&addressdetails=1';
+    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(r => ({
+      texto: r.display_name,
+      lon: parseFloat(r.lon),
+      lat: parseFloat(r.lat)
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
+function mostrarSugerencias(resultados) {
+  suggestionsBox.innerHTML = '';
+  resultados.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'suggestion-item';
+    div.textContent = r.texto;
+    div.addEventListener('click', () => {
+      suggestionsBox.innerHTML = '';
+      searchBox.style.display = 'none';
+      map.flyTo({ center: [r.lon, r.lat], zoom: 18, duration: 8000, curve: 1.42 });
+    });
+    suggestionsBox.appendChild(div);
+  });
+}
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 <link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
