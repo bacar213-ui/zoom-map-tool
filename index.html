@@ -39,6 +39,17 @@
     padding:18px 40px; font-size:20px; border-radius:12px; border:none;
     background:#1d4ed8; color:white; cursor:pointer;
   }
+  #detailsBox {
+    position:absolute; left:10px; right:10px; bottom:10px; z-index:10;
+    background:white; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    font-size:14px; overflow:hidden;
+  }
+  #detailsHeader {
+    padding:12px; display:flex; justify-content:space-between; align-items:center;
+    cursor:pointer; font-weight:bold;
+  }
+  #detailsContent { padding:0 12px 12px 12px; max-height:200px; overflow-y:auto; }
+  #detailsContent div { padding:4px 0; border-bottom:1px solid #eee; }
 </style>
 </head>
 <body>
@@ -72,6 +83,15 @@
   </div>
   <div id="suggestions"></div>
 </div>
+
+<div id="detailsBox" style="display:none;">
+  <div id="detailsHeader">
+    <span>Detalles de la ubicacion</span>
+    <span id="detailsToggle">&#9660;</span>
+  </div>
+  <div id="detailsContent" style="display:none;"></div>
+</div>
+
 <div id="map"></div>
 
 <script>
@@ -225,6 +245,7 @@ function mostrarSugerencias(resultados) {
 
       suggestionsBox.innerHTML = '';
       searchBox.style.display = 'none';
+      document.getElementById('detailsBox').style.display = 'none';
       entrarPantallaCompleta();
 
       if (currentMarker) currentMarker.remove();
@@ -232,17 +253,57 @@ function mostrarSugerencias(resultados) {
         .setLngLat([r.lon, r.lat])
         .addTo(map);
 
+      cargarDetallesUbicacion(r.lat, r.lon);
+
       setTimeout(() => {
         map.flyTo({ center: [r.lon, r.lat], zoom: zoomFinal, duration: duracion, curve: 1.42 });
+        setTimeout(() => {
+          searchBox.style.display = 'block';
+          document.getElementById('detailsBox').style.display = 'block';
+        }, duracion + 3000);
       }, 1000);
     });
     suggestionsBox.appendChild(div);
   });
 }
+
+async function cargarDetallesUbicacion(lat, lon) {
+  const detailsContent = document.getElementById('detailsContent');
+  detailsContent.innerHTML = '<div>Cargando detalles...</div>';
+  try {
+    const url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat +
+                '&lon=' + lon + '&addressdetails=1&accept-language=es';
+    const res = await fetch(url);
+    const data = await res.json();
+    const a = data.address || {};
+
+    const campos = [
+      ['Coordenadas', lat.toFixed(6) + ', ' + lon.toFixed(6)],
+      ['Direccion completa', data.display_name || '-'],
+      ['Vecindario', a.neighbourhood || a.suburb || a.quarter || '-'],
+      ['Distrito', a.city_district || a.district || a.borough || '-'],
+      ['Condado', a.county || '-'],
+      ['Ciudad', a.city || a.town || a.village || '-'],
+      ['Estado / Provincia', a.state || '-'],
+      ['Codigo postal', a.postcode || '-'],
+      ['Pais', a.country || '-']
+    ];
+
+    detailsContent.innerHTML = campos.map(c =>
+      '<div><strong>' + c[0] + ':</strong> ' + c[1] + '</div>'
+    ).join('');
+  } catch (e) {
+    detailsContent.innerHTML = '<div>No se pudieron cargar los detalles</div>';
+  }
+}
+
+document.getElementById('detailsHeader').addEventListener('click', () => {
+  const content = document.getElementById('detailsContent');
+  const arrow = document.getElementById('detailsToggle');
+  const abierto = content.style.display === 'block';
+  content.style.display = abierto ? 'none' : 'block';
+  arrow.innerHTML = abierto ? '&#9660;' : '&#9650;';
+});
 </script>
 </body>
 </html>
-
- 
-
-   
