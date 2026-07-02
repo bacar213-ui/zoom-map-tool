@@ -114,6 +114,14 @@ input.addEventListener('keypress', (e) => {
 
 const LOCATIONIQ_KEY = 'PEGA_AQUI_TU_CLAVE';
 
+function entrarPantallaCompleta() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (req) {
+    req.call(el).catch(() => {});
+  }
+}
+
 async function buscarSugerencias(query) {
   suggestionsBox.innerHTML = '<div class="suggestion-item">Buscando...</div>';
   try {
@@ -199,6 +207,7 @@ function mostrarSugerencias(resultados) {
 
       suggestionsBox.innerHTML = '';
       searchBox.style.display = 'none';
+      entrarPantallaCompleta();
 
       if (currentMarker) currentMarker.remove();
       currentMarker = new maplibregl.Marker({ color: '#e11d1d' })
