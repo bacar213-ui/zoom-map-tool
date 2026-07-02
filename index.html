@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  body { margin:0; padding:0; }
+  #map { position:absolute; top:0; bottom:0; width:100%; }
+  #searchBox {
+    position:absolute; top:10px; left:10px; right:10px; z-index:10;
+    display:flex; gap:6px;
+  }
+  #searchInput {
+    flex:1; padding:12px; font-size:16px; border-radius:8px; border:none;
+  }
+  #searchBtn {
+    padding:12px 16px; font-size:16px; border-radius:8px; border:none;
+    background:#1d4ed8; color:white;
+  }
+</style>
+</head>
+<body>
+
+<div id="searchBox">
+  <input id="searchInput" type="text" placeholder="Ej: Bar Marsella, Barcelona" />
+  <button id="searchBtn">Buscar</button>
+</div>
+<div id="map"></div>
+
+<script>
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.stadiamaps.com/styles/alidade_satellite.json',
+  center: [2.1734, 41.3851],
+  zoom: 3
+});
+
+async function buscarLugar(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+  const res = await fetch(url, {
+    headers: { 'Accept-Language': 'es' }
+  });
+  const data = await res.json();
+  if (data.length === 0) {
+    alert("No se encontró ese sitio, prueba con más detalle (ej. añade la ciudad)");
+    return;
+  }
+  const lugar = data[0];
+  document.getElementById('searchBox').style.display = 'none';
+  map.flyTo({
+    center: [parseFloat(lugar.lon), parseFloat(lugar.lat)],
+    zoom: 18,
+    duration: 8000,
+    curve: 1.42
+  });
+}
+
+document.getElementById('searchBtn').addEventListener('click', () => {
+  const query = document.getElementById('searchInput').value.trim();
+  if (query) buscarLugar(query);
+});
+
+document.getElementById('searchInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+</script>
+</body>
+</html>
